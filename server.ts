@@ -185,6 +185,47 @@ function appendLog(logs: any[], from: string, to: string, message: string, statu
   return updatedLogs.slice(0, 100); // Manter os últimos 100 logs
 }
 
+// Resolver Spintax de forma recursiva
+function resolveSpintax(text: string): string {
+  const matches = text.match(/\{[^{}]+\}/g);
+  if (!matches) return text;
+  
+  let resolved = text;
+  for (const match of matches) {
+    const options = match.slice(1, -1).split('|');
+    const chosen = options[Math.floor(Math.random() * options.length)];
+    resolved = resolved.replace(match, chosen);
+  }
+  return resolveSpintax(resolved);
+}
+
+// Deixa a mensagem ultra-humana e única para evitar banimento do WhatsApp
+function humanizeMessage(text: string): string {
+  // 1. Resolve o Spintax
+  let output = resolveSpintax(text);
+
+  // 2. Variação aleatória de risadas brasileiras
+  const laughterList = ["kkkk", "kkkkk", "kkk", "rsrs", "rs", "😂", "haha", "hahaha"];
+  output = output.replace(/\b(kkkk|kkk|rs|rsrs)\b/gi, () => {
+    return laughterList[Math.floor(Math.random() * laughterList.length)];
+  });
+
+  // 3. Variação de abreviações e gírias humanas de forma orgânica
+  if (Math.random() < 0.4) {
+    output = output.replace(/\bvc\b/gi, Math.random() < 0.5 ? "você" : "vc");
+    output = output.replace(/\btb\b/gi, Math.random() < 0.5 ? "também" : "tbm");
+    output = output.replace(/\bmto\b/gi, Math.random() < 0.5 ? "muito" : "mto");
+  }
+
+  // 4. Injetar Emojis adicionais amigáveis aleatoriamente no final de algumas frases (30% de chance)
+  const emojis = [" 🚀", " 👍", " 🙏", " ☕", " 😉", " 🎯", " ✌️", " 👊", ""];
+  if (Math.random() < 0.3) {
+    output += emojis[Math.floor(Math.random() * emojis.length)];
+  }
+
+  return output;
+}
+
 // Executa o fluxo de diálogo de forma assíncrona sem travar o loop principal
 async function runServerDialogueFlow(
   url: string,
@@ -209,23 +250,26 @@ async function runServerDialogueFlow(
         break;
       }
 
-      // 1. Simulação de escrita
+      // Gera a mensagem humanizada e exclusiva para esse envio
+      const finalMessage = humanizeMessage(msg.text);
+
+      // 1. Simulação de escrita baseada no tamanho do texto final
       if (simulateTyping) {
         freshConfig.logs = appendLog(freshConfig.logs, sender.name, receiver.name, "Digitando...", "composing", day);
         await saveMaturadorConfig(freshConfig);
-        const typingDelay = Math.min(msg.text.length * 80, 4000);
+        const typingDelay = Math.min(finalMessage.length * 60, 4000);
         await new Promise(r => setTimeout(r, typingDelay));
       }
 
       // 2. Envio real pela API
-      const success = await sendText(url, key, sender.name, receiver.phoneNumber, msg.text);
+      const success = await sendText(url, key, sender.name, receiver.phoneNumber, finalMessage);
 
       // 3. Atualizar estatísticas e logs
       const updatedConfig = await getMaturadorConfig();
       if (!updatedConfig) break;
 
       if (success) {
-        updatedConfig.logs = appendLog(updatedConfig.logs, sender.name, receiver.name, msg.text, "sent", day);
+        updatedConfig.logs = appendLog(updatedConfig.logs, sender.name, receiver.name, finalMessage, "sent", day);
         
         // Inicializa estatísticas se vazias
         if (!updatedConfig.chipStats[sender.name]) {
@@ -238,7 +282,7 @@ async function runServerDialogueFlow(
         updatedConfig.chipStats[sender.name].sent = (updatedConfig.chipStats[sender.name].sent || 0) + 1;
         updatedConfig.chipStats[receiver.name].received = (updatedConfig.chipStats[receiver.name].received || 0) + 1;
       } else {
-        updatedConfig.logs = appendLog(updatedConfig.logs, sender.name, receiver.name, `Falha no envio de: "${msg.text}"`, "failed", day);
+        updatedConfig.logs = appendLog(updatedConfig.logs, sender.name, receiver.name, `Falha no envio de: "${finalMessage}"`, "failed", day);
       }
 
       await saveMaturadorConfig(updatedConfig);
