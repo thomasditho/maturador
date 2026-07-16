@@ -6,17 +6,25 @@ import { AgentConfig, Lead } from '../types';
 const fetchImageAsBase64 = async (url: string): Promise<string | null> => {
     try {
         const response = await fetch(url);
-        const blob = await response.blob();
-        return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const base64 = reader.result as string;
-                const clean = base64.split(',')[1];
-                resolve(clean);
-            };
-            reader.onerror = () => resolve(null);
-            reader.readAsDataURL(blob);
-        });
+        if (typeof window === 'undefined') {
+            // Node.js/Server-side
+            const arrayBuffer = await response.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            return buffer.toString('base64');
+        } else {
+            // Browser-side
+            const blob = await response.blob();
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64 = reader.result as string;
+                    const clean = base64.split(',')[1];
+                    resolve(clean);
+                };
+                reader.onerror = () => resolve(null);
+                reader.readAsDataURL(blob);
+            });
+        }
     } catch (e) {
         console.error("Error fetching image for Gemini:", e);
         return null;

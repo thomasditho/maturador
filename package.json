@@ -4,15 +4,17 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "tsx server.ts",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "preview": "vite preview",
-    "start": "sirv dist --port 3000 --host 0.0.0.0 --single",
+    "start": "node dist/server.cjs",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
     "@supabase/supabase-js": "^2.39.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "jszip": "3.10.1",
     "lucide-react": "^0.555.0",
     "react": "^19.2.0",
@@ -20,8 +22,12 @@
     "sirv-cli": "^3.0.1"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "esbuild": "^0.28.1",
+    "tsx": "^4.23.1",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

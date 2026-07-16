@@ -53,8 +53,25 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   const [runningAgents, setRunningAgents] = useState<Record<string, ActiveAgentState>>({});
-  const agentStopFlags = useRef<Record<string, boolean>>({});
-  const agentQueueCursors = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    const syncStatus = async () => {
+      try {
+        const response = await fetch('/api/agents/status');
+        if (response.ok) {
+          const statusMap = await response.json();
+          setRunningAgents(statusMap);
+        }
+      } catch (e) {
+        console.error("Erro ao sincronizar status dos agentes com o servidor:", e);
+      }
+    };
+
+    // Run immediately and then poll every 3 seconds
+    syncStatus();
+    const interval = setInterval(syncStatus, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
@@ -117,102 +134,46 @@ const App: React.FC = () => {
   }, [settings, loading]);
 
   const handleStartAgent = async (agentId: string, leadsToProcess: string[]) => {
-      agentStopFlags.current[agentId] = false;
-      agentQueueCursors.current[agentId] = 0;
       const agent = agents.find(a => a.id === agentId);
       if (!agent) return;
       const chipIds = agent.connectedInstanceIds || (agent.connectedInstanceId ? [agent.connectedInstanceId] : []);
       if (chipIds.length === 0) return alert("Nenhum chip configurado.");
-      
-      const targets = await DatabaseService.getLeadsByIds(leadsToProcess);
-      
-      setRunningAgents(prev => ({
-          ...prev,
-          [agentId]: {
-              agentId,
-              status: 'RUNNING',
-              progress: { current: 0, total: leadsToProcess.length },
-              activeWorkers: chipIds.length,
-              logs: [`Iniciando com ${chipIds.length} chips...`]
-          }
-      }));
 
-      chipIds.forEach(chipId => {
-          const instance = instances.find(i => i.id === chipId);
-          const limit = agent.instanceLimits?.[chipId];
-          if (instance && instance.status === 'CONNECTED') runWorkerLoop(agent, instance, targets, limit);
-      });
+      try {
+          const response = await fetch('/api/agents/start', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  agentId,
+                  leadIds: leadsToProcess,
+                  safetyConfig,
+                  settings
+              })
+          });
+          if (!response.ok) {
+              const err = await response.json();
+              alert(`Erro ao iniciar agente no servidor: ${err.error || 'Erro desconhecido'}`);
+          }
+      } catch (e) {
+          console.error("Start agent request failed:", e);
+          alert("Não foi possível conectar ao servidor para iniciar o agente.");
+      }
   };
 
-  const handleStopAgent = (agentId: string) => {
-      agentStopFlags.current[agentId] = true;
-      setRunningAgents(prev => ({
-          ...prev,
-          [agentId]: { ...prev[agentId], status: 'PAUSED' }
-      }));
-  };
-
-  const runWorkerLoop = async (agent: AgentConfig, instance: Instance, allTargets: Lead[], limit?: number) => {
-      let sentByMe = 0;
-      while (true) {
-          if (agentStopFlags.current[agent.id]) break; 
-
-          if (limit && sentByMe >= limit) {
-              setRunningAgents(prev => ({
-                  ...prev,
-                  [agent.id]: { 
-                      ...prev[agent.id], 
-                      logs: [...(prev[agent.id]?.logs || []), `Chip ${instance.name} atingiu limite (${limit}) e parou.`]
-                  }
-              }));
-              break; 
+  const handleStopAgent = async (agentId: string) => {
+      try {
+          const response = await fetch('/api/agents/stop', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ agentId })
+          });
+          if (!response.ok) {
+              const err = await response.json();
+              alert(`Erro ao pausar agente no servidor: ${err.error || 'Erro desconhecido'}`);
           }
-
-          const currentIndex = agentQueueCursors.current[agent.id];
-          if (currentIndex >= allTargets.length) break;
-          agentQueueCursors.current[agent.id]++;
-          sentByMe++;
-          
-          const lead = allTargets[currentIndex];
-          
-          setRunningAgents(prev => ({
-              ...prev,
-              [agent.id]: { 
-                  ...prev[agent.id], 
-                  currentLead: lead.name,
-                  progress: { ...prev[agent.id].progress, current: Math.min((prev[agent.id]?.progress.current || 0) + 1, allTargets.length) }
-              }
-          }));
-
-          try {
-              const alreadyAborded = await DatabaseService.checkGlobalHistory(lead.phone).catch(() => false);
-              if (alreadyAborded) continue;
-
-              const messageText = await generateAgentMessage(agent, lead).catch(() => `Olá ${lead.name}, tudo bem?`);
-              
-              let success = false;
-              if (lead.data?.print_base64) {
-                  success = await EvolutionService.sendMedia(settings, instance.name, lead.phone, lead.data.print_base64, messageText);
-              } else {
-                  success = await EvolutionService.sendText(settings, instance.name, lead.phone, messageText);
-              }
-
-              if (success) {
-                  DatabaseService.updateLeadStatus(lead.id, LeadStatus.SENT);
-                  DatabaseService.getOrCreateSession(agent.id, lead, instance.id).then(sid => {
-                      if (sid) DatabaseService.logMessage(sid, messageText, 'agent');
-                  });
-              } else {
-                  DatabaseService.updateLeadStatus(lead.id, LeadStatus.FAILED);
-              }
-          } catch (e) {
-              console.error("Worker Loop error:", e);
-          }
-
-          if (!agentStopFlags.current[agent.id]) {
-              const delay = Math.floor(Math.random() * (safetyConfig.maxDelay - safetyConfig.minDelay + 1) + safetyConfig.minDelay) * 1000;
-              await new Promise(r => setTimeout(r, delay));
-          }
+      } catch (e) {
+          console.error("Stop agent request failed:", e);
+          alert("Não foi possível conectar ao servidor para pausar o agente.");
       }
   };
 

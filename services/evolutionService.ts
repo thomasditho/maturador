@@ -18,14 +18,17 @@ export const EvolutionService = {
 
   // Helpers para persistência local de números corrigidos manualmente
   getPhoneOverrides: (): Record<string, string> => {
+    if (typeof window === 'undefined') return {};
     const saved = localStorage.getItem('ditho_phone_overrides');
     return saved ? JSON.parse(saved) : {};
   },
 
   savePhoneOverride: (instanceName: string, phoneNumber: string) => {
-    const overrides = EvolutionService.getPhoneOverrides();
-    overrides[instanceName] = phoneNumber;
-    localStorage.setItem('ditho_phone_overrides', JSON.stringify(overrides));
+    if (typeof window !== 'undefined') {
+      const overrides = EvolutionService.getPhoneOverrides();
+      overrides[instanceName] = phoneNumber;
+      localStorage.setItem('ditho_phone_overrides', JSON.stringify(overrides));
+    }
   },
 
   // Fetch all instances from Evolution
