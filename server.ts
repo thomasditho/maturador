@@ -350,11 +350,27 @@ async function checkMaturadorLoop() {
       return;
     }
 
-    // Embaralhar e criar pares únicos de chips
-    const shuffled = [...activeChips].sort(() => Math.random() - 0.5);
+    // 1. Gerar todos os cruzamentos possíveis (combinações de 2 a 2 de chips ativos)
+    const allPossiblePairs: [any, any][] = [];
+    for (let i = 0; i < activeChips.length; i++) {
+      for (let j = i + 1; j < activeChips.length; j++) {
+        allPossiblePairs.push([activeChips[i], activeChips[j]]);
+      }
+    }
+
+    // 2. Embaralhar todas as combinações possíveis para que os cruzamentos sejam orgânicos e dinâmicos
+    const shuffledCombinations = [...allPossiblePairs].sort(() => Math.random() - 0.5);
+
+    // 3. Selecionar pares disjuntos para este ciclo de forma que nenhum chip participe de mais de uma conversa simultaneamente
     const pairs: [any, any][] = [];
-    for (let i = 0; i < shuffled.length - 1; i += 2) {
-      pairs.push([shuffled[i], shuffled[i+1]]);
+    const usedChips = new Set<string>();
+
+    for (const [chipA, chipB] of shuffledCombinations) {
+      if (!usedChips.has(chipA.name) && !usedChips.has(chipB.name)) {
+        pairs.push([chipA, chipB]);
+        usedChips.add(chipA.name);
+        usedChips.add(chipB.name);
+      }
     }
 
     // Escolhe roteiro de diálogos correspondente ao dia
@@ -425,7 +441,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*all', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
