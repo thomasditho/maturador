@@ -69,6 +69,9 @@ const Agents: React.FC<AgentsProps> = ({ agents, setAgents, instances, safetyCon
   // TEST MODAL STATE
   const [showTestModal, setShowTestModal] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [testProgress, setTestProgress] = useState<{ current: number, total: number }>({ current: 0, total: 0 });
+  const [testStatusMessage, setTestStatusMessage] = useState<string | null>(null);
+  const testStopFlagRef = useRef(false);
 
   // SYNC MODAL STATE
   const [showSyncModal, setShowSyncModal] = useState(false);
@@ -478,61 +481,101 @@ const Agents: React.FC<AgentsProps> = ({ agents, setAgents, instances, safetyCon
   };
 
   const handleTestRun = async (lead: Lead) => {
-      if (!activeAgent?.connectedInstanceId) return alert("Erro: Nenhum chip conectado (defina um Principal).");
-      const instance = instances.find(i => i.id === activeAgent.connectedInstanceId);
-      if (!instance) return alert("Erro: Chip principal offline.");
-
-      const testNum = getTestNumber(instance.name);
-      const confirmTest = confirm(`Enviar teste de ${lead.name} para SEU NÚMERO (${testNum})?`);
-      if (!confirmTest) return;
-
-      try {
-          const message = await generateAgentMessage(activeAgent, lead);
-          if (lead.data?.print_base64) {
-              await EvolutionService.sendMedia(settings, instance.name, testNum, lead.data.print_base64, message);
-          } else {
-              await EvolutionService.sendText(settings, instance.name, testNum, message);
-          }
-          alert("Teste enviado!");
-      } catch (e: any) {
-          alert("Erro no teste: " + e.message);
+      const chipIds = activeAgent?.connectedInstanceIds || (activeAgent?.connectedInstanceId ? [activeAgent.connectedInstanceId] : []);
+      const primaryChipId = activeAgent?.connectedInstanceId || chipIds[0];
+      if (!primaryChipId) {
+          alert("Por favor, conecte pelo menos um chip na aba CHIPS antes de testar.");
+          return;
       }
+      setTestStatusMessage(null);
+      setSelectedLeads([lead.id]);
+      setSelectedLeadsFullObjects([lead]);
+      setShowTestModal(true);
   };
 
   const handleBulkTestTrigger = () => {
-      if (!activeAgent?.connectedInstanceId) return alert("Erro: Agente não tem chip principal.");
-      if (selectedLeads.length === 0) return alert("Selecione leads para testar.");
+      const chipIds = activeAgent?.connectedInstanceIds || (activeAgent?.connectedInstanceId ? [activeAgent.connectedInstanceId] : []);
+      const primaryChipId = activeAgent?.connectedInstanceId || chipIds[0];
+      if (!primaryChipId) {
+          alert("Por favor, conecte pelo menos um chip na aba CHIPS antes de testar.");
+          return;
+      }
+      if (selectedLeads.length === 0) {
+          alert("Selecione leads para testar.");
+          return;
+      }
+      setTestStatusMessage(null);
       setShowTestModal(true);
   };
 
   const executeBulkTest = async () => {
-      if (!activeAgent?.connectedInstanceId) return;
-      const instance = instances.find(i => i.id === activeAgent.connectedInstanceId);
-      if (!instance) return;
+      const chipIds = activeAgent?.connectedInstanceIds || (activeAgent?.connectedInstanceId ? [activeAgent.connectedInstanceId] : []);
+      const primaryChipId = activeAgent?.connectedInstanceId || chipIds[0];
+      if (!primaryChipId) return;
+      const instance = instances.find(i => i.id === primaryChipId);
+      if (!instance) {
+          alert("Erro: Chip principal offline ou desconectado.");
+          return;
+      }
 
       const testNum = getTestNumber(instance.name);
       setIsTesting(true);
+      testStopFlagRef.current = false;
+      setTestStatusMessage(null);
+      setTestProgress({ current: 0, total: selectedLeads.length });
+      
       let successCount = 0;
       const allLeads = [...dbLeads];
-      for (const leadId of selectedLeads) {
+      
+      for (let i = 0; i < selectedLeads.length; i++) {
+          if (testStopFlagRef.current) {
+              break;
+          }
+          
+          const leadId = selectedLeads[i];
+          setTestProgress({ current: i + 1, total: selectedLeads.length });
+          
           const lead = allLeads.find(l => l.id === leadId);
           if (!lead) continue;
+          
           try {
               const message = await generateAgentMessage(activeAgent, lead);
+              let success = false;
               if (lead.data?.print_base64) {
-                  await EvolutionService.sendMedia(settings, instance.name, testNum, lead.data.print_base64, message);
+                  success = await EvolutionService.sendMedia(settings, instance.name, testNum, lead.data.print_base64, message);
               } else {
-                  await EvolutionService.sendText(settings, instance.name, testNum, message);
+                  success = await EvolutionService.sendText(settings, instance.name, testNum, message);
               }
-              successCount++;
+              if (success) {
+                  successCount++;
+              }
           } catch (e) {
-              console.error(e);
+              console.error("Erro ao enviar mensagem de teste:", e);
           }
-          await new Promise(r => setTimeout(r, 1500)); 
+          
+          if (i < selectedLeads.length - 1 && !testStopFlagRef.current) {
+              // delay of 1.5s between test messages, with interruption check
+              await new Promise(r => {
+                  const checkInterval = setInterval(() => {
+                      if (testStopFlagRef.current) {
+                          clearInterval(checkInterval);
+                          r(null);
+                      }
+                  }, 100);
+                  setTimeout(() => {
+                      clearInterval(checkInterval);
+                      r(null);
+                  }, 1500);
+              });
+          }
       }
+      
       setIsTesting(false);
-      setShowTestModal(false);
-      alert(`Teste finalizado! ${successCount}/${selectedLeads.length} mensagens enviadas.`);
+      if (testStopFlagRef.current) {
+          setTestStatusMessage(`Teste pausado! ${successCount} mensagens enviadas.`);
+      } else {
+          setTestStatusMessage(`Teste concluído! ${successCount}/${selectedLeads.length} mensagens enviadas.`);
+      }
   };
 
   const handleBulkDelete = async () => {
@@ -2068,49 +2111,99 @@ const Agents: React.FC<AgentsProps> = ({ agents, setAgents, instances, safetyCon
       {showTestModal && (
           <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in-95 duration-200">
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
-                      <FlaskConical className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 text-center mb-2">Envio de Teste</h3>
-                  <div className="bg-gray-50 p-4 rounded-lg mb-4 text-sm">
-                      <div className="flex justify-between mb-2">
-                          <span className="text-gray-500">Qtd. Leads:</span>
-                          <span className="font-bold">{selectedLeads.length}</span>
+                  {isTesting ? (
+                      // 1. RUNNING/SENDING PHASE
+                      <div className="text-center py-4">
+                          <div className="relative w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+                              <span className="absolute inset-0 rounded-full border-4 border-blue-100 border-t-blue-600 animate-spin"></span>
+                              <FlaskConical className="w-8 h-8 text-blue-600 animate-bounce" />
+                          </div>
+                          <h3 className="text-xl font-bold text-gray-900 mb-2">Executando Teste</h3>
+                          
+                          <div className="w-full bg-gray-100 rounded-full h-2 mb-4">
+                              <div 
+                                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                                  style={{ width: `${(testProgress.current / testProgress.total) * 100}%` }}
+                              ></div>
+                          </div>
+                          
+                          <p className="text-sm text-gray-500 mb-6 font-medium">
+                              Enviando {testProgress.current} de {testProgress.total} mensagens...
+                          </p>
+                          
+                          <button 
+                              onClick={() => {
+                                  testStopFlagRef.current = true;
+                              }}
+                              className="w-full py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-all shadow-md active:scale-95"
+                          >
+                              <Pause className="w-4 h-4" /> PAUSAR TESTE
+                          </button>
                       </div>
-                      <div className="flex justify-between">
-                          <span className="text-gray-500">Destino:</span>
-                          <span className="font-bold text-blue-600">
-                              {(() => {
-                                  const inst = instances.find(i => i.id === activeAgent?.connectedInstanceId);
-                                  return inst ? getTestNumber(inst.name) : "5511988216073";
-                              })()}
-                          </span>
+                  ) : testStatusMessage ? (
+                      // 2. COMPLETED / PAUSED SUMMARY PHASE
+                      <div className="text-center py-4">
+                          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 text-green-600">
+                              <CheckSquare className="w-8 h-8" />
+                          </div>
+                          <h3 className="text-xl font-bold text-gray-900 mb-3">Resultado do Teste</h3>
+                          <p className="text-sm text-gray-600 mb-6 font-semibold bg-gray-50 p-4 rounded-xl border border-gray-100">
+                              {testStatusMessage}
+                          </p>
+                          <button 
+                              onClick={() => {
+                                  setShowTestModal(false);
+                                  setTestStatusMessage(null);
+                              }}
+                              className="w-full py-3 bg-black hover:bg-gray-800 text-white rounded-lg font-bold transition-all shadow-md"
+                          >
+                              Fechar
+                          </button>
                       </div>
-                  </div>
-                  <p className="text-center text-gray-500 text-xs mb-6">
-                      As mensagens serão geradas pela IA (com imagem se houver) e enviadas para o seu número. Os leads <strong>não</strong> serão marcados como 'Enviado' no banco.
-                  </p>
-                  
-                  <div className="flex gap-3">
-                      <button 
-                          onClick={() => setShowTestModal(false)}
-                          className="flex-1 py-3 bg-white border border-gray-300 rounded-lg font-bold text-gray-700 hover:bg-gray-50"
-                          disabled={isTesting}
-                      >
-                          Cancelar
-                      </button>
-                      <button 
-                          onClick={executeBulkTest}
-                          disabled={isTesting}
-                          className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center justify-center gap-2"
-                      >
-                          {isTesting ? (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin"/> Enviando...
-                              </>
-                          ) : 'Confirmar Envio'}
-                      </button>
-                  </div>
+                  ) : (
+                      // 3. PREPARATION/CONFIRMATION PHASE
+                      <>
+                          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
+                              <FlaskConical className="w-6 h-6" />
+                          </div>
+                          <h3 className="text-xl font-bold text-gray-900 text-center mb-2">Envio de Teste</h3>
+                          <div className="bg-gray-50 p-4 rounded-lg mb-4 text-sm">
+                              <div className="flex justify-between mb-2">
+                                  <span className="text-gray-500">Qtd. Leads:</span>
+                                  <span className="font-bold">{selectedLeads.length}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                  <span className="text-gray-500">Destino:</span>
+                                  <span className="font-bold text-blue-600">
+                                      {(() => {
+                                          const chipIds = activeAgent?.connectedInstanceIds || (activeAgent?.connectedInstanceId ? [activeAgent.connectedInstanceId] : []);
+                                          const primaryChipId = activeAgent?.connectedInstanceId || chipIds[0];
+                                          const inst = instances.find(i => i.id === primaryChipId);
+                                          return inst ? getTestNumber(inst.name) : "Nenhum chip conectado";
+                                      })()}
+                                  </span>
+                              </div>
+                          </div>
+                          <p className="text-center text-gray-500 text-xs mb-6">
+                              As mensagens serão geradas pela IA (com imagem se houver) e enviadas para o seu número. Os leads <strong>não</strong> serão marcados como 'Enviado' no banco.
+                          </p>
+                          
+                          <div className="flex gap-3">
+                              <button 
+                                  onClick={() => setShowTestModal(false)}
+                                  className="flex-1 py-3 bg-white border border-gray-300 rounded-lg font-bold text-gray-700 hover:bg-gray-50"
+                              >
+                                  Cancelar
+                              </button>
+                              <button 
+                                  onClick={executeBulkTest}
+                                  className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center justify-center gap-2"
+                              >
+                                  Confirmar Envio
+                              </button>
+                          </div>
+                      </>
+                  )}
               </div>
           </div>
       )}
