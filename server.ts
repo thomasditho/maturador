@@ -13,8 +13,17 @@ if (!process.env.API_KEY && process.env.GEMINI_API_KEY) {
   process.env.API_KEY = process.env.GEMINI_API_KEY;
 }
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Safely resolve __filename and __dirname regardless of ESM (tsx) or CommonJS (compiled bundle) context
+const hasGlobalFilename = typeof __filename !== 'undefined';
+const hasGlobalDirname = typeof __dirname !== 'undefined';
+
+const currentFilename = hasGlobalFilename 
+  ? __filename 
+  : (typeof import.meta !== 'undefined' && import.meta.url ? fileURLToPath(import.meta.url) : '');
+
+const currentDirname = hasGlobalDirname 
+  ? __dirname 
+  : (currentFilename ? path.dirname(currentFilename) : process.cwd());
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
