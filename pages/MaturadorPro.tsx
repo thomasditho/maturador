@@ -6,288 +6,8 @@ import {
 } from 'lucide-react';
 import { Instance, SystemSettings } from '../types';
 import { EvolutionService } from '../services/evolutionService';
-
-interface DialogueMessage {
-  senderIndex: number; // 0 ou 1 dentro da dupla de conversa
-  text: string;
-  simulateAudio?: boolean;
-}
-
-interface DialogueFlow {
-  id: string;
-  theme: string;
-  messages: DialogueMessage[];
-}
-
-interface DayScript {
-  day: number;
-  title: string;
-  description: string;
-  dialogues: DialogueFlow[];
-}
-
-// 7 dias de roteiros super humanizados (português natural, erros leves de digitação, risadas e termos de vendas)
-const MATURADOR_SCRIPTS: DayScript[] = [
-  {
-    day: 1,
-    title: "Alinhamento e Boas Vindas",
-    description: "Conversas leves simulando o início da semana de trabalho, networking e troca de boas-vindas.",
-    dialogues: [
-      {
-        id: "d1_1",
-        theme: "Café da manhã e Rotina",
-        messages: [
-          { senderIndex: 0, text: "Opa, bom dia! Tudo bem por aí? Já tomou aquele café?" },
-          { senderIndex: 1, text: "Fala mestre! Bom dia! Tudo ótimo por aqui, e com vc? Cafézão já tá na caneca rs" },
-          { senderIndex: 0, text: "Kkkkk boa! Aqui também. Bora que essa semana promete bastante coisa!" },
-          { senderIndex: 1, text: "Com certeza! Muitas metas pra bater. Se precisar de alguma ajuda me avisa." }
-        ]
-      },
-      {
-        id: "d1_2",
-        theme: "Apresentação e Cargo",
-        messages: [
-          { senderIndex: 0, text: "Me diz uma coisa, vc tá cuidando da parte de prospecção fria essa semana?" },
-          { senderIndex: 1, text: "Isso mesmo, tô focado em BDR e qualificação. Por que? Tem algum lead bom aí?" },
-          { senderIndex: 0, text: "Tenho sim, depois vou te passar uma lista que separei de empresas de tecnologia." },
-          { senderIndex: 1, text: "Caraca, show demais! Vai ajudar muito no meu funil. Valeu msm!" }
-        ]
-      },
-      {
-        id: "d1_3",
-        theme: "Organização do Funil",
-        messages: [
-          { senderIndex: 0, text: "Vc costuma usar muito o Trello ou prefere planilha pra organizar as tarefas?" },
-          { senderIndex: 1, text: "Cara, confesso q planilha ainda me salva kkk mas o Notion é mto bom tb" },
-          { senderIndex: 0, text: "Sim, Notion é vida kkkk depois te mostro meu modelo de dashboard" },
-          { senderIndex: 1, text: "Opa, quero ver sim! Toda otimização é muito bem vinda" }
-        ]
-      }
-    ]
-  },
-  {
-    day: 2,
-    title: "Estratégias de Leads e Prospecção",
-    description: "Diálogos sobre leads frios, qualidade das listas e contornos de objeções de clientes.",
-    dialogues: [
-      {
-        id: "d2_1",
-        theme: "Qualidade de Lead",
-        messages: [
-          { senderIndex: 0, text: "Achei uns leads meio frios na lista de ontem... O que vc achou?" },
-          { senderIndex: 1, text: "Vixi, sério? Por aqui eu consegui falar com 3 que tinham bastante interesse." },
-          { senderIndex: 0, text: "Ah então deve ser o nicho, peguei uma amostragem diferente talvez" },
-          { senderIndex: 1, text: "Pode ser. Tenta focar no pessoal de serviços, tá convertendo mais rápido." }
-        ]
-      },
-      {
-        id: "d2_2",
-        theme: "Objeção de Preço",
-        messages: [
-          { senderIndex: 0, text: "Como vc tá contornando quando o lead fala que tá sem orçamento logo de cara?" },
-          { senderIndex: 1, text: "Cara, eu mostro o ROI. Falo do quanto ele deixa de ganhar por não ter o sistema." },
-          { senderIndex: 0, text: "Excelente ponto. Vou usar essa abordagem na próxima ligação." },
-          { senderIndex: 1, text: "Funciona muito! Se ele perceber valor de vdd, o preço fica em segundo plano." }
-        ]
-      },
-      {
-        id: "d2_3",
-        theme: "Follow-up Inteligente",
-        messages: [
-          { senderIndex: 0, text: "Quantos follow-ups vc faz antes de dar o lead como perdido?" },
-          { senderIndex: 1, text: "Geralmente uns 4 ou 5, mas bem espaçados pra não virar spammer chato né kkkk" },
-          { senderIndex: 0, text: "Pois é, se mandar todo dia o pessoal bloqueia na hora kkk" },
-          { senderIndex: 1, text: "Com certeza, o segredo é gerar valor a cada contato" }
-        ]
-      }
-    ]
-  },
-  {
-    day: 3,
-    title: "Tecnologia e Automação de WhatsApp",
-    description: "Tópicos sobre ferramentas, prevenção de banimentos e comportamento humanizado.",
-    dialogues: [
-      {
-        id: "d3_1",
-        theme: "Maturador Cruzado",
-        messages: [
-          { senderIndex: 0, text: "Esse sistema novo de maturação cruzada é mto louco né? Os chips conversando sozinhos kkk" },
-          { senderIndex: 1, text: "Mano, sim! Evita demais os bloqueios porque simula conversa real" },
-          { senderIndex: 0, text: "Pois é, o algoritmo do whats adora ver essa interação orgânica." },
-          { senderIndex: 1, text: "Exatamente. O segredo é ter conversas variadas e não só links." }
-        ]
-      },
-      {
-        id: "d3_2",
-        theme: "Configuração de Jitter/Delay",
-        messages: [
-          { senderIndex: 0, text: "Qual delay vc tá usando nas mensagens pra ficar seguro?" },
-          { senderIndex: 1, text: "Tô deixando entre 30 e 80 segundos, com simulação de digitação ativada." },
-          { senderIndex: 0, text: "Perfeito, esse tempo de escrita faz toda a diferença msm." },
-          { senderIndex: 1, text: "Sim! Evita o padrão de robô instantâneo. Inteligência é tudo" }
-        ]
-      },
-      {
-        id: "d3_3",
-        theme: "Instabilidade de Sinal",
-        messages: [
-          { senderIndex: 0, text: "Seu celular desconectou da internet hoje cedo? O meu deu uma oscilada." },
-          { senderIndex: 1, text: "Aqui funcionou normal, mas meu roteador fica bem do lado dos aparelhos." },
-          { senderIndex: 0, text: "Vou testar colocar o meu mais perto também pra garantir." },
-          { senderIndex: 1, text: "Faz isso, sinal wifi bom ajuda mto a não cair a conexão do Baileys." }
-        ]
-      }
-    ]
-  },
-  {
-    day: 4,
-    title: "Estratégias de Copywriting e Conversão",
-    description: "Simulação de debates sobre abordagens de copy, gatilhos mentais e criativos de alto impacto.",
-    dialogues: [
-      {
-        id: "d4_1",
-        theme: "Abordagem Direta vs Indireta",
-        messages: [
-          { senderIndex: 0, text: "Cara, vc acha melhor iniciar a conversa sendo bem direto ou gerando rapport?" },
-          { senderIndex: 1, text: "Indireta com certeza! Quem gosta de vendedor chato te abordando do nada? Kkk" },
-          { senderIndex: 0, text: "Verdade. Uma pergunta simples de conexão funciona bem melhor." },
-          { senderIndex: 1, text: "Exato! Tipo 'vi seu perfil e curti seu trabalho, vc atende na região X?'" }
-        ]
-      },
-      {
-        id: "d4_2",
-        theme: "Uso de Áudios",
-        messages: [
-          { senderIndex: 0, text: "Mandar áudio na primeira mensagem funciona?" },
-          { senderIndex: 1, text: "Depende muito! Áudio curto de 15 segundos personalizado converte absurdos." },
-          { senderIndex: 0, text: "Hum, faz sentido. Passa mais credibilidade do que um textão copiado." },
-          { senderIndex: 1, text: "Sim! Mas nunca mande áudio de 2 minutos pra quem não te conhece kkkk" }
-        ]
-      },
-      {
-        id: "d4_3",
-        theme: "Gatilho da Escassez",
-        messages: [
-          { senderIndex: 0, text: "Tava pensando em usar o gatilho de poucas vagas pro nosso próximo evento." },
-          { senderIndex: 1, text: "Ótima ideia! Escassez real sempre acelera a decisão do cliente." },
-          { senderIndex: 0, text: "Vou montar a copy focado nisso hoje à tarde." },
-          { senderIndex: 1, text: "Se quiser que eu dê uma olhada depois, pode mandar aqui!" }
-        ]
-      }
-    ]
-  },
-  {
-    day: 5,
-    title: "Discussão de Negócios e Desafios",
-    description: "Conversas profissionais de alto nível sobre faturamento, metas corporativas e novos contratos.",
-    dialogues: [
-      {
-        id: "d5_1",
-        theme: "Fechamento de Contrato",
-        messages: [
-          { senderIndex: 0, text: "Fechamos aquela conta grande que estávamos negociando!" },
-          { senderIndex: 1, text: "Meeentaira! Que top mano! Parabéns pra nós!! 🚀" },
-          { senderIndex: 0, text: "Simm! Assinaram o contrato digital agora pouco. O projeto começa na segunda." },
-          { senderIndex: 1, text: "Caraca, sensacional! Esse cliente vai elevar nosso patamar de faturamento." }
-        ]
-      },
-      {
-        id: "d5_2",
-        theme: "Reunião de Alinhamento",
-        messages: [
-          { senderIndex: 0, text: "Nossa reunião de alinhamento trimestral foi marcada pra amanhã?" },
-          { senderIndex: 1, text: "Isso, às 10h. Vamos revisar os números de conversão e gargalos de vendas." },
-          { senderIndex: 0, text: "Maravilha. Já tô com os relatórios prontos aqui." },
-          { senderIndex: 1, text: "Excelente! Vai ser mto bom pra desenhar os próximos passos." }
-        ]
-      },
-      {
-        id: "d5_3",
-        theme: "Novas Ferramentas",
-        messages: [
-          { senderIndex: 0, text: "Tava olhando umas ferramentas novas de CRM... Alguma recomendação?" },
-          { senderIndex: 1, text: "Cara, o Pipedrive é excelente pra vendas ativas, bem visual." },
-          { senderIndex: 0, text: "Vou fazer um teste grátis lá pra ver se adapta com nosso funil." },
-          { senderIndex: 1, text: "Vai gostar! A organização de etapas deles ajuda mto a não esquecer de nenhum lead." }
-        ]
-      }
-    ]
-  },
-  {
-    day: 6,
-    title: "Happy Hour e Planos de Fim de Semana",
-    description: "Momento descontraído! Conversas informais sobre o final de semana, piadas de escritório e lazer.",
-    dialogues: [
-      {
-        id: "d6_1",
-        theme: "Plano para Sexta-feira",
-        messages: [
-          { senderIndex: 0, text: "Sextouuu! Qual a boa de hoje? Algum happy hour planejado?" },
-          { senderIndex: 1, text: "Sextou demais! Kkkk vou tomar uma gelada com a galera hoje sim, tá merecido!" },
-          { senderIndex: 0, text: "Com certeza, semana puxada demais. Onde vcs vão?" },
-          { senderIndex: 1, text: "Naquele espetinho de sempre perto do escritório. Aparece lá dps!" }
-        ]
-      },
-      {
-        id: "d6_2",
-        theme: "Churrasco de Sábado",
-        messages: [
-          { senderIndex: 0, text: "Amanhã vou fazer um churrasco em família aqui. Descansar um pouco." },
-          { senderIndex: 1, text: "Que top mano! Nada melhor do que churrasco pra recarregar as energias" },
-          { senderIndex: 0, text: "Verdade, esquecer um pouco de leads e focar na família rs" },
-          { senderIndex: 1, text: "Isso aí, aproveita bastante mestre!" }
-        ]
-      },
-      {
-        id: "d6_3",
-        theme: "Dica de Filme ou Série",
-        messages: [
-          { senderIndex: 0, text: "Tem alguma indicação de série boa na Netflix pra maratonar no domingo?" },
-          { senderIndex: 1, text: "Cara, se vc curte suspense, assiste aquela nova de mistério que lançou." },
-          { senderIndex: 0, text: "Qual o nome? Vou pesquisar aqui." },
-          { senderIndex: 1, text: "Chama 'O Segredo da Floresta'. Assisti em 2 dias, muito viciante!" }
-        ]
-      }
-    ]
-  },
-  {
-    day: 7,
-    title: "Foco no Mindset e Preparativos",
-    description: "Diálogos sobre desenvolvimento pessoal, livros de vendas recomendados e planejamento da semana.",
-    dialogues: [
-      {
-        id: "d7_1",
-        theme: "Leitura Recomendada",
-        messages: [
-          { senderIndex: 0, text: "Terminei de ler o livro 'Spins Selling' que vc me indicou. Sensacional!" },
-          { senderIndex: 1, text: "Não falei? Esse livro é a bíblia de vendas consultivas. Muda muito a cabeça." },
-          { senderIndex: 0, text: "Nossa, total! Comecei a entender melhor a diferença de perguntas de situação vs necessidade." },
-          { senderIndex: 1, text: "Perfeito! Quando vc domina as perguntas de implicação, o fechamento fica natural." }
-        ]
-      },
-      {
-        id: "d7_2",
-        theme: "Organização de Domingo",
-        messages: [
-          { senderIndex: 0, text: "Eu gosto de tirar uma horinha no domingo à noite pra planejar minha agenda de segunda." },
-          { senderIndex: 1, text: "Boa! Eu faço isso também. Evita aquela sensação de segunda-feira perdida kkk" },
-          { senderIndex: 0, text: "Exato, já acordo sabendo exatamente quem eu preciso ligar e responder." },
-          { senderIndex: 1, text: "Faz total diferença na produtividade. Vamos pra cima amanhã!" }
-        ]
-      },
-      {
-        id: "d7_3",
-        theme: "Mindset Vencedor",
-        messages: [
-          { senderIndex: 0, text: "Bora descansar o restante de hoje pq amanhã a arena de vendas nos espera kkk" },
-          { senderIndex: 1, text: "Kkkkk bora! Força total. Bom restinho de domingo aí mestre!" },
-          { senderIndex: 0, text: "Valeu, pra vc também! Abraço!" },
-          { senderIndex: 1, text: "Tmj, abraço!" }
-        ]
-      }
-    ]
-  }
-];
+import { DatabaseService } from '../services/databaseService';
+import { MATURADOR_SCRIPTS, DayScript, DialogueFlow, DialogueMessage } from '../services/maturadorScripts';
 
 interface MaturadorProProps {
   instances: Instance[];
@@ -314,41 +34,90 @@ export const MaturadorPro: React.FC<MaturadorProProps> = ({ instances, settings 
   const [endHour, setEndHour] = useState("22:00");
   const [simulateTyping, setSimulateTyping] = useState(true);
   const [logs, setLogs] = useState<LogMessage[]>([]);
-  
-  // Estados para auto-resposta de desconhecidos
-  const [unknownAutoReplyEnabled, setUnknownAutoReplyEnabled] = useState(() => {
-    return localStorage.getItem('unknown_autoreply_enabled') === 'true';
-  });
-  
-  const [unknownReplies, setUnknownReplies] = useState<Record<string, string>>(() => {
-    const saved = localStorage.getItem('unknown_replies_config');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return {};
-  });
+  const [unknownAutoReplyEnabled, setUnknownAutoReplyEnabled] = useState(false);
+  const [unknownReplies, setUnknownReplies] = useState<Record<string, string>>({});
+  const [chipStats, setChipStats] = useState<Record<string, { sent: number; received: number; status: 'active' | 'paused' }>>({});
 
   interface PendingReply {
     id: string;
     chipName: string;
     fromNumber: string;
     messageReceived: string;
-    replyAt: number; // timestamp em ms
-    timeRemaining: number; // em segundos
+    replyAt: number;
+    timeRemaining: number;
     status: 'agendado' | 'enviando' | 'enviado' | 'cancelado';
   }
 
   const [pendingReplies, setPendingReplies] = useState<PendingReply[]>([]);
-
-  // Estados locais para simular mensagem de desconhecido
   const [simulatedChip, setSimulatedChip] = useState("");
   const [simulatedNumber, setSimulatedNumber] = useState("+55 11 99999-8888");
   const [simulatedMessage, setSimulatedMessage] = useState("Olá, gostaria de saber mais informações.");
 
-  // Handler para simular recebimento de mensagem de desconhecido
-  const handleSimulateIncomingMessage = (e: React.FormEvent) => {
+  const [stats, setStats] = useState({
+    sentToday: 0,
+    activeDuos: 0,
+    efficiency: 100,
+    daysCompleted: 0
+  });
+
+  // Função genérica para salvar estado consolidado no banco (Supabase)
+  const saveConfigToDb = async (updatedFields: Partial<any>) => {
+    const currentConfig = await DatabaseService.getMaturadorConfig();
+    const merged = {
+      ...currentConfig,
+      ...updatedFields
+    };
+    await DatabaseService.saveMaturadorConfig(merged);
+  };
+
+  // Carrega e atualiza periodicamente (Polling de 3 segundos) do Supabase
+  useEffect(() => {
+    let active = true;
+
+    const loadConfig = async () => {
+      const dbConfig = await DatabaseService.getMaturadorConfig();
+      if (dbConfig && active) {
+        setIsRunning(dbConfig.isRunning || false);
+        setCurrentDay(dbConfig.currentDay || 1);
+        setMinDelay(dbConfig.minDelay || 15);
+        setMaxDelay(dbConfig.maxDelay || 35);
+        setStartHour(dbConfig.startHour || "08:00");
+        setEndHour(dbConfig.endHour || "22:00");
+        setSimulateTyping(dbConfig.simulateTyping !== false);
+        setUnknownAutoReplyEnabled(dbConfig.unknownAutoReplyEnabled || false);
+        setUnknownReplies(dbConfig.unknownReplies || {});
+        setChipStats(dbConfig.chipStats || {});
+        setLogs(dbConfig.logs || []);
+
+        // Consolida métricas
+        let totalSent = 0;
+        let pausedCount = 0;
+        Object.keys(dbConfig.chipStats || {}).forEach(k => {
+          totalSent += dbConfig.chipStats[k]?.sent || 0;
+          if (dbConfig.chipStats[k]?.status === 'paused') pausedCount++;
+        });
+
+        const connectedCount = instances.filter(i => i.status === 'CONNECTED').length;
+        setStats({
+          sentToday: totalSent,
+          activeDuos: Math.max(0, Math.floor((connectedCount - pausedCount) / 2)),
+          efficiency: 100,
+          daysCompleted: 0
+        });
+      }
+    };
+
+    loadConfig();
+    const interval = setInterval(loadConfig, 3000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [instances]);
+
+  // Handler para simular recebimento de desconhecido
+  const handleSimulateIncomingMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!simulatedChip) {
       alert("Selecione um chip para receber a mensagem simulada!");
@@ -363,370 +132,314 @@ export const MaturadorPro: React.FC<MaturadorProProps> = ({ instances, settings 
     const targetChip = connectedChips.find(i => i.name === simulatedChip);
     if (!targetChip) return;
 
-    // Adiciona log de recebimento de desconhecido
-    addSystemLog(simulatedNumber, targetChip.name, `[Mensagem Recebida] ${simulatedMessage}`, 'waiting');
+    // Registra recebimento no logs e agenda se habilitado
+    const timestamp = new Date().toLocaleTimeString('pt-BR');
+    const incomingLog = {
+      id: Math.random().toString(36).substring(7),
+      time: timestamp,
+      from: simulatedNumber,
+      to: targetChip.name,
+      message: `[Mensagem Recebida] ${simulatedMessage}`,
+      status: 'waiting' as const,
+      day: currentDay
+    };
 
-    // Se a auto-resposta estiver ligada, agenda para daqui a 5 minutos (300 segundos)
+    const newLogs = [incomingLog, ...logs];
+    setLogs(newLogs);
+
     if (unknownAutoReplyEnabled) {
-      const newReply: PendingReply = {
+      const messageText = unknownReplies[targetChip.name] || "Olá! Recebi sua mensagem por aqui. Em breve te respondo!";
+      alert(`Auto-resposta de teste agendada para enviar daqui a 5 minutos para ${simulatedNumber}.`);
+      
+      // Salva no banco de dados para o cron do servidor enviar em 5 min
+      const simulatedReply = {
         id: Math.random().toString(36).substring(7),
-        chipName: simulatedChip,
+        chipName: targetChip.name,
         fromNumber: simulatedNumber,
         messageReceived: simulatedMessage,
         replyAt: Date.now() + 300000,
-        timeRemaining: 300, // 5 minutos = 300 segundos
-        status: 'agendado'
+        timeRemaining: 300,
+        status: 'agendado' as const
       };
-      setPendingReplies(prev => [newReply, ...prev]);
-      addSystemLog("Sistema", simulatedChip, `Auto-resposta para ${simulatedNumber} agendada para daqui a 5 minutos.`, 'waiting');
+      setPendingReplies(prev => [simulatedReply, ...prev]);
+      
+      const systemLog = {
+        id: Math.random().toString(36).substring(7),
+        time: timestamp,
+        from: "Sistema",
+        to: targetChip.name,
+        message: `Auto-resposta para ${simulatedNumber} agendada para daqui a 5 minutos.`,
+        status: 'waiting' as const,
+        day: currentDay
+      };
+      await saveConfigToDb({
+        logs: [systemLog, incomingLog, ...logs]
+      });
     } else {
-      addSystemLog("Sistema", simulatedChip, `Auto-resposta de desconhecidos desativada. Nenhuma resposta agendada.`, 'waiting');
+      await saveConfigToDb({
+        logs: [incomingLog, ...logs]
+      });
     }
   };
 
-  // Salva configurações de auto-resposta no localStorage
-  useEffect(() => {
-    localStorage.setItem('unknown_autoreply_enabled', String(unknownAutoReplyEnabled));
-  }, [unknownAutoReplyEnabled]);
-
-  useEffect(() => {
-    localStorage.setItem('unknown_replies_config', JSON.stringify(unknownReplies));
-  }, [unknownReplies]);
-
-  // Contadores de estatísticas
-  const [stats, setStats] = useState({
-    sentToday: 0,
-    activeDuos: 0,
-    efficiency: 100,
-    daysCompleted: 0
-  });
-
-  // Referência para controlar o loop de maturação
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const isRunningRef = useRef(isRunning);
-
-  // Armazena as estatísticas locais de cada chip conectando ao nome do chip
-  const [chipStats, setChipStats] = useState<Record<string, { sent: number; received: number; status: 'active' | 'paused' }>>({});
-
-  useEffect(() => {
-    isRunningRef.current = isRunning;
-  }, [isRunning]);
-
-  // Inicializa estatísticas dos chips quando eles carregam, mesclando com o localStorage
-  useEffect(() => {
+  const handleStart = async () => {
     const connected = instances.filter(i => i.status === 'CONNECTED');
-    const initialStats: Record<string, { sent: number; received: number; status: 'active' | 'paused' }> = {};
-    
-    const savedChipStats = localStorage.getItem('maturador_chip_stats');
-    let parsedSaved: Record<string, { sent: number; received: number; status: 'active' | 'paused' }> = {};
-    if (savedChipStats) {
-      try {
-        parsedSaved = JSON.parse(savedChipStats);
-      } catch (e) {
-        console.error("Erro ao ler chip stats salvos:", e);
-      }
+    if (connected.length < 2) {
+      alert("Atenção! Você precisa de pelo menos 2 chips conectados (CONNECTED) na aba de instâncias para iniciar a maturação.");
     }
-
-    connected.forEach(inst => {
-      initialStats[inst.name] = {
-        sent: parsedSaved[inst.name]?.sent || chipStats[inst.name]?.sent || 0,
-        received: parsedSaved[inst.name]?.received || chipStats[inst.name]?.received || 0,
-        status: parsedSaved[inst.name]?.status || chipStats[inst.name]?.status || 'active'
-      };
+    
+    setIsRunning(true);
+    const timestamp = new Date().toLocaleTimeString('pt-BR');
+    const systemLog = {
+      id: Math.random().toString(36).substring(7),
+      time: timestamp,
+      from: "Sistema",
+      to: "Início",
+      message: `Maturador Pro Ativado! Processo em nuvem operando 24/7 de forma contínua.`,
+      status: 'waiting' as const,
+      day: currentDay
+    };
+    
+    const newLogs = [systemLog, ...logs];
+    setLogs(newLogs);
+    await saveConfigToDb({
+      isRunning: true,
+      logs: newLogs
     });
-    setChipStats(initialStats);
-  }, [instances]);
+  };
 
-  // Função para disparar a auto-resposta real após os 5 minutos expirarem
-  const sendAutoReplyReal = async (replyItem: PendingReply) => {
-    const messageText = unknownReplies[replyItem.chipName] || "Olá! Recebi sua mensagem por aqui. Em breve te respondo!";
+  const handleStop = async () => {
+    setIsRunning(false);
+    const timestamp = new Date().toLocaleTimeString('pt-BR');
+    const systemLog = {
+      id: Math.random().toString(36).substring(7),
+      time: timestamp,
+      from: "Sistema",
+      to: "Parada",
+      message: `Maturador Pro Pausado pelo usuário.`,
+      status: 'waiting' as const,
+      day: currentDay
+    };
     
-    addSystemLog(
-      replyItem.chipName, 
-      replyItem.fromNumber, 
-      `[Auto-Resposta] Iniciando digitação para resposta agendada...`, 
-      'composing'
-    );
+    const newLogs = [systemLog, ...logs];
+    setLogs(newLogs);
+    await saveConfigToDb({
+      isRunning: false,
+      logs: newLogs
+    });
+  };
 
-    // Espera simulação curta de escrita antes de enviar
-    if (simulateTyping) {
-      await new Promise(r => setTimeout(r, 2500));
+  const toggleChipStatus = async (chipName: string) => {
+    const updatedStats = { ...chipStats };
+    const current = updatedStats[chipName] || { sent: 0, received: 0, status: 'active' as const };
+    const nextStatus = current.status === 'active' ? 'paused' : 'active';
+    
+    updatedStats[chipName] = {
+      ...current,
+      status: nextStatus as 'active' | 'paused'
+    };
+    
+    setChipStats(updatedStats);
+    
+    const timestamp = new Date().toLocaleTimeString('pt-BR');
+    const systemLog = {
+      id: Math.random().toString(36).substring(7),
+      time: timestamp,
+      from: "Sistema",
+      to: chipName,
+      message: `Status do chip alterado para ${nextStatus === 'active' ? 'Ativo' : 'Pausado'}.`,
+      status: 'waiting' as const,
+      day: currentDay
+    };
+    
+    const newLogs = [systemLog, ...logs];
+    setLogs(newLogs);
+    await saveConfigToDb({
+      chipStats: updatedStats,
+      logs: newLogs
+    });
+  };
+
+  // Disparo de teste imediato, ignorando delays para dar feedback instantâneo ao usuário
+  const triggerQuickTest = async () => {
+    const connected = instances.filter(i => i.status === 'CONNECTED');
+    const pausedCount = Object.keys(chipStats).filter(name => chipStats[name]?.status === 'paused');
+    const activeChips = connected.filter(i => !pausedCount.includes(i.name));
+
+    if (activeChips.length < 2) {
+      alert("Você precisa de pelo menos 2 chips conectados e ativos para disparar o teste.");
+      return;
     }
+
+    const [chipA, chipB] = [activeChips[0], activeChips[1]];
+    const dayScript = MATURADOR_SCRIPTS.find(s => s.day === currentDay) || MATURADOR_SCRIPTS[0];
+    const testDialogue = dayScript.dialogues[0];
+    const testMessage = testDialogue.messages[0].text;
+
+    alert(`Disparando mensagem de teste de [${chipA.name}] para [${chipB.name}] de forma imediata...`);
 
     let success = false;
-    if (settings.evolutionApiUrl && settings.evolutionApiKey && replyItem.fromNumber) {
+    if (settings.evolutionApiUrl && settings.evolutionApiKey && chipB.phoneNumber !== 'Sem número') {
       try {
-        success = await EvolutionService.sendText(settings, replyItem.chipName, replyItem.fromNumber, messageText);
+        success = await EvolutionService.sendText(settings, chipA.name, chipB.phoneNumber, testMessage);
       } catch (e) {
-        console.error("Erro no envio real de auto-resposta de desconhecido:", e);
-        success = false;
+        console.error("Erro no envio do teste rápido:", e);
       }
     } else {
-      success = true; // Modo simulação caso não esteja configurado
+      success = true; // Simulado
     }
+
+    const timestamp = new Date().toLocaleTimeString('pt-BR');
+    const testLog = {
+      id: Math.random().toString(36).substring(7),
+      time: timestamp,
+      from: chipA.name,
+      to: chipB.name,
+      message: success ? `[Teste Rápido Enviado] ${testMessage}` : `[Teste Rápido Falhou] ${testMessage}`,
+      status: success ? ('sent' as const) : ('failed' as const),
+      day: currentDay
+    };
+
+    const newLogs = [testLog, ...logs];
+    setLogs(newLogs);
 
     if (success) {
-      addSystemLog(replyItem.chipName, replyItem.fromNumber, `[Auto-Resposta Enviada] ${messageText}`, 'sent');
-      setStats(prev => ({
-        ...prev,
-        sentToday: prev.sentToday + 1
-      }));
-
-      setChipStats(prev => {
-        const currentStats = prev[replyItem.chipName] || { sent: 0, received: 0, status: 'active' };
-        const updatedStats = {
-          ...prev,
-          [replyItem.chipName]: {
-            ...currentStats,
-            sent: currentStats.sent + 1
-          }
-        };
-        localStorage.setItem('maturador_chip_stats', JSON.stringify(updatedStats));
-        return updatedStats;
-      });
-
-      setPendingReplies(prev => prev.map(item => 
-        item.id === replyItem.id ? { ...item, status: 'enviado', timeRemaining: 0 } : item
-      ));
-    } else {
-      addSystemLog(replyItem.chipName, replyItem.fromNumber, `Falha ao enviar auto-resposta para desconhecido`, 'failed');
-      setPendingReplies(prev => prev.map(item => 
-        item.id === replyItem.id ? { ...item, status: 'cancelado' } : item
-      ));
-    }
-  };
-
-  // Cronômetro regressivo da fila de auto-respostas a cada segundo
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setPendingReplies(prev => {
-        if (prev.length === 0) return prev;
-
-        return prev.map(item => {
-          if (item.status !== 'agendado') return item;
-          
-          const newRemaining = item.timeRemaining - 1;
-          if (newRemaining <= 0) {
-            sendAutoReplyReal(item);
-            return {
-              ...item,
-              timeRemaining: 0,
-              status: 'enviando'
-            };
-          }
-          
-          return {
-            ...item,
-            timeRemaining: newRemaining
-          };
-        });
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [unknownReplies, settings, simulateTyping]);
-
-  // Função auxiliar para obter um par de chips para conversar
-  const getEligiblePairs = () => {
-    const connected = instances.filter(i => i.status === 'CONNECTED');
-    const activeNames = Object.keys(chipStats).filter(name => chipStats[name]?.status === 'active');
-
-    const activeChips = connected.filter(i => activeNames.includes(i.name));
-
-    if (activeChips.length < 2) return [];
-
-    // Embaralha e cria pares únicos
-    const shuffled = [...activeChips].sort(() => Math.random() - 0.5);
-    const pairs: [Instance, Instance][] = [];
-    for (let i = 0; i < shuffled.length - 1; i += 2) {
-      pairs.push([shuffled[i], shuffled[i+1]]);
-    }
-    return pairs;
-  };
-
-  // Função principal que envia a mensagem e agenda a próxima
-  const triggerNextDialogueStep = async () => {
-    if (!isRunningRef.current) return;
-
-    // 1. Validar se está dentro da janela de horário
-    const now = new Date();
-    const currentHourStr = now.toTimeString().slice(0, 5); // "14:30"
-    if (currentHourStr < startHour || currentHourStr > endHour) {
-      addSystemLog("Standby", "Standby", `Maturador em modo Standby (Fora do horário de atividade: ${startHour} às ${endHour})`, 'waiting');
-      // Tenta novamente em 5 minutos
-      setTimeout(triggerNextDialogueStep, 300000);
-      return;
-    }
-
-    // 2. Pegar as duplas elegíveis de chips conectados
-    const pairs = getEligiblePairs();
-    if (pairs.length === 0) {
-      addSystemLog("Sistema", "Aviso", "Apenas 1 ou nenhum chip conectado ativo. Aguardando conexão de mais chips para maturação cruzada.", 'failed');
-      setIsRunning(false);
-      return;
-    }
-
-    setStats(prev => ({ ...prev, activeDuos: pairs.length }));
-
-    // 3. Para cada par, escolhe um diálogo aleatório do dia selecionado
-    const dayScript = MATURADOR_SCRIPTS.find(s => s.day === currentDay) || MATURADOR_SCRIPTS[0];
-    
-    for (const [chipA, chipB] of pairs) {
-      const randomDialogue = dayScript.dialogues[Math.floor(Math.random() * dayScript.dialogues.length)];
+      const updatedStats = { ...chipStats };
+      if (!updatedStats[chipA.name]) updatedStats[chipA.name] = { sent: 0, received: 0, status: 'active' };
+      if (!updatedStats[chipB.name]) updatedStats[chipB.name] = { sent: 0, received: 0, status: 'active' };
       
-      addSystemLog(
-        "Maturador", 
-        "Fila", 
-        `Iniciando diálogo sobre "${randomDialogue.theme}" entre [${chipA.name}] e [${chipB.name}]`, 
-        'waiting'
-      );
+      updatedStats[chipA.name].sent += 1;
+      updatedStats[chipB.name].received += 1;
+      setChipStats(updatedStats);
 
-      // Executa as mensagens do diálogo de forma sequencial com delay
-      runDialogueFlow(chipA, chipB, randomDialogue);
-    }
-
-    // Agenda o próximo ciclo de diálogos baseando-se no delay configurado mais um fator aleatório de dispersão
-    const cycleDelay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay) * 1000 * 2;
-    setTimeout(triggerNextDialogueStep, cycleDelay);
-  };
-
-  // Executa uma conversa inteira passo a passo entre dois chips
-  const runDialogueFlow = async (chipA: Instance, chipB: Instance, dialogue: DialogueFlow) => {
-    for (const msg of dialogue.messages) {
-      if (!isRunningRef.current) break;
-
-      const sender = msg.senderIndex === 0 ? chipA : chipB;
-      const receiver = msg.senderIndex === 0 ? chipB : chipA;
-
-      // Se algum deles foi pausado ou desconectou, cancela o fluxo
-      if (chipStats[sender.name]?.status === 'paused' || chipStats[receiver.name]?.status === 'paused') {
-        break;
-      }
-
-      // Passo 1: Simular Digitação (composing)
-      if (simulateTyping) {
-        addSystemLog(sender.name, receiver.name, `Digitando...`, 'composing');
-        // Espera de digitação realista baseada no tamanho do texto
-        const typingDelay = Math.min(msg.text.length * 80, 4000);
-        await new Promise(r => setTimeout(r, typingDelay));
-      }
-
-      // Passo 2: Enviar mensagem fisicamente pela Evolution API se tivermos URLs configuradas e o número for válido
-      let success = false;
-      const destinationPhone = receiver.phoneNumber;
-
-      if (settings.evolutionApiUrl && settings.evolutionApiKey && destinationPhone !== 'Sem número') {
-        try {
-          success = await EvolutionService.sendText(settings, sender.name, destinationPhone, msg.text);
-        } catch (e) {
-          console.error("Erro no envio real da maturação:", e);
-          success = false;
-        }
-      } else {
-        // Modo simulação se as credenciais não estiverem configuradas
-        success = true; 
-      }
-
-      // Passo 3: Registrar Log e atualizar KPIs
-      if (success) {
-        addSystemLog(sender.name, receiver.name, msg.text, 'sent');
-        
-        // Atualiza estatísticas do chip remetente e destinatário
-        setChipStats(prev => ({
-          ...prev,
-          [sender.name]: {
-            ...prev[sender.name],
-            sent: (prev[sender.name]?.sent || 0) + 1
-          },
-          [receiver.name]: {
-            ...prev[receiver.name],
-            received: (prev[receiver.name]?.received || 0) + 1
-          }
-        }));
-
-        setStats(prev => ({
-          ...prev,
-          sentToday: prev.sentToday + 1
-        }));
-      } else {
-        addSystemLog(sender.name, receiver.name, `Falha ao enviar mensagem: "${msg.text}"`, 'failed');
-        setStats(prev => ({
-          ...prev,
-          efficiency: Math.max(70, prev.efficiency - 5)
-        }));
-      }
-
-      // Passo 4: Espera entre as interações do diálogo (delay individual)
-      const messageDelay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay) * 1000;
-      await new Promise(r => setTimeout(r, messageDelay));
+      await saveConfigToDb({
+        logs: newLogs,
+        chipStats: updatedStats
+      });
+      alert("Mensagem de teste enviada com sucesso!");
+    } else {
+      await saveConfigToDb({ logs: newLogs });
+      alert("Falha ao enviar a mensagem de teste. Verifique sua API Key e conexão do chip.");
     }
   };
 
-  const addSystemLog = (from: string, to: string, text: string, status: 'composing' | 'sent' | 'failed' | 'waiting') => {
-    const newLog: LogMessage = {
+  const addSystemLog = async (from: string, to: string, text: string, status: 'composing' | 'sent' | 'failed' | 'waiting') => {
+    const timestamp = new Date().toLocaleTimeString('pt-BR');
+    const newLog = {
       id: Math.random().toString(36).substring(7),
-      time: new Date().toLocaleTimeString(),
+      time: timestamp,
       from,
       to,
       message: text,
       status,
       day: currentDay
     };
-    setLogs(prev => [newLog, ...prev.slice(0, 99)]); // Limita nos últimos 100 logs
+    const newLogs = [newLog, ...logs];
+    setLogs(newLogs);
+    await saveConfigToDb({ logs: newLogs });
   };
 
-  const handleStart = () => {
-    const connected = instances.filter(i => i.status === 'CONNECTED');
-    if (connected.length < 2) {
-      alert("Atenção! Você precisa de pelo menos 2 chips conectados (CONNECTED) na aba de instâncias para iniciar a maturação real de chips conversando entre si.");
-    }
+  const sendAutoReplyReal = async (replyItem: PendingReply) => {
+    const messageText = unknownReplies[replyItem.chipName] || "Olá! Recebi sua mensagem por aqui. Em breve te respondo!";
+    const timestamp = new Date().toLocaleTimeString('pt-BR');
     
-    setIsRunning(true);
-    isRunningRef.current = true;
-    addSystemLog("Sistema", "Início", `Maturador Pro Ativado! Ciclo do Dia ${currentDay} iniciado.`, 'waiting');
-    triggerNextDialogueStep();
-  };
+    const statusLog = {
+      id: Math.random().toString(36).substring(7),
+      time: timestamp,
+      from: replyItem.chipName,
+      to: replyItem.fromNumber,
+      message: `[Auto-Resposta] Enviando resposta manual para desconhecido...`,
+      status: 'composing' as const,
+      day: currentDay
+    };
 
-  const handleStop = () => {
-    setIsRunning(false);
-    isRunningRef.current = false;
-    addSystemLog("Sistema", "Parada", "Maturador Pro Pausado pelo usuário.", 'waiting');
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
+    setLogs(prev => [statusLog, ...prev]);
+
+    let success = false;
+    if (settings.evolutionApiUrl && settings.evolutionApiKey && replyItem.fromNumber) {
+      try {
+        success = await EvolutionService.sendText(settings, replyItem.chipName, replyItem.fromNumber, messageText);
+      } catch (e) {
+        console.error("Erro no envio manual de auto-resposta:", e);
+      }
+    } else {
+      success = true;
+    }
+
+    const finalLog = {
+      id: Math.random().toString(36).substring(7),
+      time: timestamp,
+      from: replyItem.chipName,
+      to: replyItem.fromNumber,
+      message: success ? `[Auto-Resposta Enviada] ${messageText}` : `[Falha Auto-Resposta] ${messageText}`,
+      status: success ? ('sent' as const) : ('failed' as const),
+      day: currentDay
+    };
+
+    const newLogs = [finalLog, ...logs];
+    setLogs(newLogs);
+
+    if (success) {
+      const updatedStats = { ...chipStats };
+      if (!updatedStats[replyItem.chipName]) {
+        updatedStats[replyItem.chipName] = { sent: 0, received: 0, status: 'active' };
+      }
+      updatedStats[replyItem.chipName].sent += 1;
+      setChipStats(updatedStats);
+
+      setPendingReplies(prev => prev.map(item => 
+        item.id === replyItem.id ? { ...item, status: 'enviado', timeRemaining: 0 } : item
+      ));
+
+      await saveConfigToDb({
+        logs: newLogs,
+        chipStats: updatedStats
+      });
+    } else {
+      setPendingReplies(prev => prev.map(item => 
+        item.id === replyItem.id ? { ...item, status: 'cancelado', timeRemaining: 0 } : item
+      ));
+      await saveConfigToDb({ logs: newLogs });
     }
   };
 
-  const toggleChipStatus = (chipName: string) => {
-    setChipStats(prev => {
-      const current = prev[chipName] || { sent: 0, received: 0, status: 'active' };
-      const nextStatus = current.status === 'active' ? 'paused' : 'active';
-      const updated = {
-        ...prev,
-        [chipName]: {
-          ...current,
-          status: nextStatus
-        }
-      };
-      localStorage.setItem('maturador_chip_stats', JSON.stringify(updated));
-      // Usando nextStatus diretamente para logar a mudança correta sem se preocupar com o delay de render do state
-      addSystemLog("Sistema", chipName, `Status do chip alterado para ${nextStatus === 'active' ? 'Ativo' : 'Pausado'}.`, 'waiting');
-      return updated;
-    });
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+
+  const handleSaveAdvancedSettings = async () => {
+    setIsSavingConfig(true);
+    try {
+      await saveConfigToDb({
+        minDelay,
+        maxDelay,
+        startHour,
+        endHour,
+        simulateTyping
+      });
+      alert("Configurações salvas com sucesso no servidor e aplicadas em tempo real!");
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao salvar as configurações no servidor.");
+    } finally {
+      setIsSavingConfig(false);
+    }
   };
 
-  // Força uma troca de mensagem simulada para testes rápidos
-  const triggerQuickTest = async () => {
-    const pairs = getEligiblePairs();
-    if (pairs.length === 0) {
-      alert("Nenhum par de chips conectado está ativo para realizar o disparo de teste rápido.");
-      return;
+  const [isSavingAutoReplies, setIsSavingAutoReplies] = useState(false);
+
+  const handleSaveAutoReplies = async () => {
+    setIsSavingAutoReplies(true);
+    try {
+      await saveConfigToDb({
+        unknownAutoReplyEnabled,
+        unknownReplies
+      });
+      alert("Configurações de auto-resposta salvas com sucesso!");
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao salvar as configurações de auto-resposta.");
+    } finally {
+      setIsSavingAutoReplies(false);
     }
-    const [chipA, chipB] = pairs[0];
-    const dayScript = MATURADOR_SCRIPTS.find(s => s.day === currentDay) || MATURADOR_SCRIPTS[0];
-    const randomDialogue = dayScript.dialogues[Math.floor(Math.random() * dayScript.dialogues.length)];
-    
-    addSystemLog("Maturador", "Teste Rápido", `Enviando disparo de teste rápido entre [${chipA.name}] e [${chipB.name}]`, 'waiting');
-    runDialogueFlow(chipA, chipB, randomDialogue);
   };
 
   return (
@@ -1438,6 +1151,26 @@ export const MaturadorPro: React.FC<MaturadorProProps> = ({ instances, settings 
               </div>
 
             </div>
+
+            <div className="pt-6 border-t border-gray-100 flex justify-end">
+              <button
+                onClick={handleSaveAdvancedSettings}
+                disabled={isSavingConfig}
+                className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl shadow-lg shadow-orange-100 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                {isSavingConfig ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Salvando Parâmetros...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Salvar Configurações
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         )}
 
@@ -1560,6 +1293,26 @@ export const MaturadorPro: React.FC<MaturadorProProps> = ({ instances, settings 
                       );
                     })
                   )}
+                </div>
+
+                <div className="pt-4 border-t border-gray-100 flex justify-end">
+                  <button
+                    onClick={handleSaveAutoReplies}
+                    disabled={isSavingAutoReplies}
+                    className="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl shadow-lg shadow-orange-100 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                  >
+                    {isSavingAutoReplies ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        Salvando Configurações...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        Salvar Auto-Respostas
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
 

@@ -888,5 +888,71 @@ export const DatabaseService = {
             flows = flows.filter(f => f.id !== id);
             localStorage.setItem('ditho_flows', JSON.stringify(flows));
         } catch (e) {}
+    },
+
+    // --- MATURADOR SYSTEM CONFIG ---
+    async getMaturadorConfig(): Promise<any> {
+        try {
+            const { data, error } = await supabase
+                .from('agents')
+                .select('*')
+                .eq('name', '__MATURADOR_SYSTEM_CONFIG__')
+                .maybeSingle();
+
+            if (error) throw error;
+
+            if (!data) {
+                const defaultConfig = {
+                    isRunning: false,
+                    currentDay: 1,
+                    minDelay: 15,
+                    maxDelay: 35,
+                    startHour: "08:00",
+                    endHour: "22:00",
+                    simulateTyping: true,
+                    unknownAutoReplyEnabled: false,
+                    unknownReplies: {},
+                    chipStats: {},
+                    logs: [],
+                    lastRunTimestamp: 0,
+                    nextScheduledDelay: 0
+                };
+
+                const { data: created, error: createError } = await supabase
+                    .from('agents')
+                    .insert({
+                        name: '__MATURADOR_SYSTEM_CONFIG__',
+                        model: 'maturador-config',
+                        instance_limits: defaultConfig
+                    })
+                    .select()
+                    .single();
+
+                if (createError) throw createError;
+                return created.instance_limits;
+            }
+
+            return data.instance_limits;
+        } catch (e) {
+            console.error("DB Error: getMaturadorConfig", e);
+            return null;
+        }
+    },
+
+    async saveMaturadorConfig(config: any): Promise<boolean> {
+        try {
+            const { error } = await supabase
+                .from('agents')
+                .update({
+                    instance_limits: config
+                })
+                .eq('name', '__MATURADOR_SYSTEM_CONFIG__');
+
+            if (error) throw error;
+            return true;
+        } catch (e) {
+            console.error("DB Error: saveMaturadorConfig", e);
+            return false;
+        }
     }
 };
